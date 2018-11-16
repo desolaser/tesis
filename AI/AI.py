@@ -27,7 +27,7 @@ from src.model.autoencoder import autoencoder
 from src.model.dqn import dqnNet as Net
 from src.model.qnet import qNet
 from src.model.drqn import drqnNet
-import src.ae_trainer
+import src.ae_trainer as ae_trainer
 import src.tools as tools
 import os
 

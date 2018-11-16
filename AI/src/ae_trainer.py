@@ -24,11 +24,9 @@ def to_img(x):
 
 num_epochs = 40
 batch_size = 128
-learning_rate = 1e-3
 code_size = 4096
 linear_input = 9216
 linear_output = 12960
-load_model = False
 
 img_transform = transforms.Compose([
 	transforms.Resize((60,108), Image.ANTIALIAS),
@@ -38,16 +36,18 @@ img_transform = transforms.Compose([
 
 dataset = datasets.ImageFolder(root='./training_set/', transform=img_transform)
 
+dataset_length = len(dataset)
+
 #Training
-n_training_samples = 6000
+n_training_samples = (dataset_length / 5) * 3
 train_sampler = SubsetRandomSampler(np.arange(n_training_samples, dtype=np.int64))
 
 #Validation
-n_val_samples = 2000
+n_val_samples = (dataset_length / 5)
 val_sampler = SubsetRandomSampler(np.arange(n_training_samples, n_training_samples + n_val_samples, dtype=np.int64))
 
 #Test
-n_test_samples = 2000
+n_test_samples = (dataset_length / 5)
 test_sampler = SubsetRandomSampler(np.arange(n_training_samples + n_val_samples, n_training_samples + n_val_samples + n_test_samples, dtype=np.int64))
 
 train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
@@ -58,7 +58,7 @@ test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
 												sampler=test_sampler, num_workers=2)
 
 
-def train():
+def train(load_model, learning_rate):
 	if load_model:
 		model = torch.load('./src/model/autoencoder.pth')
 	else:
