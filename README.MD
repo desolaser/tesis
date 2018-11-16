@@ -26,7 +26,24 @@ verán los gráficos. (para verlo se debe ir al navegador y escribir localhost:8
 el programa de entrenamiento en el mapa más básico (basic.cfg) con el algoritmo DQN básico, que solamente posee 
 memoria de reproducción.
 
-## Parámetros
+## Entrenamiento de autoencoder
+
+Usualmente para usar la DAQN basta con utilizar AI train --daqn, sin embargo si se desea entrenar al
+autoencoder desde cero se puede hacer lo siguiente.
+
+1. Para obtener un dataset es posible utilizar el comando "AI train --image_capture" en varios mapas. Ejemplos:
+```AI train --config_path=../scenarios/defend_the_center.cfg --image_capture```
+```AI train --config_path=../scenarios/deathmatch.cfg --image_capture```
+```AI train --config_path=../scenarios/rocket_basic.cfg --image_capture```
+
+2. Ejecutar el comando ```AI ae_train```
+
+3. Al terminal saldrá un archivo llamado "autoencoder.pth". Este archivo debe ser
+copiado a la carpeta "AI/src/model/".
+
+4. Ejecutar ```AI train --daqn```.
+
+## Parámetros AI train
 
 1. --learning_rate. Valor por defecto = 0.00025. Esto sirve para definir la tasa de aprendizaje de la función Q. Ejemplo: 
 ```AI train --learning_rate=0.02```
@@ -44,7 +61,7 @@ de red neuronal a cargar que haya sido previamente entrenada. Estos modelos se v
 
 5. --skip_learning. Es un flag que define si se salta la fase de aprendizaje para pasar directamente a la fase de pruebas y ver
 al agente jugar. Ejemplo: 
-```AI train --skip_learning.```
+```AI train --skip_learning```
 
 6. --skip_watching. Este flag define si saltarse la parte de pruebas y solo realizar el entrenamiento. Especialmente útil si se
 dejará un comando por lotes entrenando al agente varias veces. Ejemplo: 
@@ -60,33 +77,19 @@ guardando en la carpeta "AI/training_set". Ejemplo:
 9. --drqn. Este flag define si se utilizará el modelo DQN con LSTM. Ejemplo: 
 ```AI train --drqn```
 
-## Entrenamiento de autoencoder
+## Parámetros AI ae_train
 
-Usualmente para usar la daqn basta con utilizar AI train --daqn, sin embargo si se desea entrenar al
-autoencoder desde cero se puede hacer lo siguiente.
+1. --learning_rate. Valor por defecto = 1e-3. Esto sirve para definir la tasa de aprendizaje del autoencoder. Ejemplo: 
+```AI ae_train --learning_rate=0.02```
 
-1. Para obtener un dataset es posible utilizar el comando "AI train --image_capture" en varios mapas. Ejemplos:
-```AI train --config_path=../scenarios/defend_the_center.cfg --image_capture```
-```AI train --config_path=../scenarios/deathmatch.cfg --image_capture```
-```AI train --config_path=../scenarios/rocket_basic.cfg --image_capture```
-
-2. Crear otra carpeta en AI llamada "training_set_min/train/" y copiar el contenido de
-"training_set" a la carpeta creada anteriormente.
-
-3. Utilizar resizer.py para cambiar el tamaño de las imágenes a 108 x 60. (Dentro
-del código se puede definir el tamaño final)
-
-4. Ejecutar el archivo "python3 ae_trainer.py".
-
-5. Al terminal saldrá un archivo llamado "autoencoder.pth". Este archivo debe ser
-copiado a la carpeta "AI/src/model/".
-
-6. Ejecutar ```AI train --daqn```.
+s. --load_model. Este flag define sirve para definir que se utilizará el autoencoder ya entrenado en vez de crear uno de cero. Ejemplo: 
+```AI ae_train --load_model```
 
 ## Notas
 
 - El archivo sgtlink.py funciona, sin embargo el token de slack fue desactivado
-por lo que es probable que tenga algunos problemas.
+por lo que es recomendable comentar el código de slack o obtener un token propio para
+copiarlo en el código.
 
 - Se puede cargar un agente ya entrenado utilizando el comando --model_to_load='./nets/model_19.pth',
 que es un agente entrenado por 20 épocas y para verlo en acción inmediatamente hay que agregar --skip_learning.

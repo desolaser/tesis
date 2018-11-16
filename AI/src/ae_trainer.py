@@ -11,6 +11,7 @@ from torchvision import datasets
 from tqdm import *
 import os
 import numpy as np
+from PIL import Image
 from src.model.autoencoder import autoencoder
 
 if not os.path.exists('./doom_img'):
@@ -30,22 +31,23 @@ linear_output = 12960
 load_model = False
 
 img_transform = transforms.Compose([
+	transforms.Resize((60,108), Image.ANTIALIAS),
 	transforms.ToTensor(),
 	transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
-#2269
-dataset = datasets.ImageFolder(root='./training_set_min/', transform=img_transform)
+
+dataset = datasets.ImageFolder(root='./training_set/', transform=img_transform)
 
 #Training
-n_training_samples = 1361
+n_training_samples = 6000
 train_sampler = SubsetRandomSampler(np.arange(n_training_samples, dtype=np.int64))
 
 #Validation
-n_val_samples = 454
+n_val_samples = 2000
 val_sampler = SubsetRandomSampler(np.arange(n_training_samples, n_training_samples + n_val_samples, dtype=np.int64))
 
 #Test
-n_test_samples = 454
+n_test_samples = 2000
 test_sampler = SubsetRandomSampler(np.arange(n_training_samples + n_val_samples, n_training_samples + n_val_samples + n_test_samples, dtype=np.int64))
 
 train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
@@ -55,16 +57,17 @@ validation_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
 test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
 												sampler=test_sampler, num_workers=2)
 
-if load_model:
-	model = torch.load('./src/model/autoencoder.pth')
-else:
-	model = autoencoder(linear_input, linear_output, code_size).cuda()
 
-criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,
-							 weight_decay=1e-5)
+def train():
+	if load_model:
+		model = torch.load('./src/model/autoencoder.pth')
+	else:
+		model = autoencoder(linear_input, linear_output, code_size).cuda()
 
-if __name__ == "__main__":  
+	criterion = nn.MSELoss()
+	optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,
+								 weight_decay=1e-5)
+
 	for epoch in range(num_epochs):    
 		print('Training')
 		for data in tqdm(train_loader):
@@ -114,3 +117,7 @@ if __name__ == "__main__":
 	print('Testing loss:{:.4f}'.format(test_loss.item()))
 
 	torch.save(model, './src/model/autoencoder.pth')
+
+
+if __name__ == "__main__":  
+	train()

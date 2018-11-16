@@ -27,6 +27,7 @@ from src.model.autoencoder import autoencoder
 from src.model.dqn import dqnNet as Net
 from src.model.qnet import qNet
 from src.model.drqn import drqnNet
+import src.ae_trainer
 import src.tools as tools
 import os
 
@@ -35,7 +36,7 @@ class Config(object):
 
 	def __init__(self):
 		# Q-learning settings
-		self.epochs = 10
+		self.epochs = 5
 		self.learning_steps_per_epoch = 2000
 		self.replay_memory_size = 10000
 
@@ -49,7 +50,7 @@ class Config(object):
 		# Other parameters
 		self.resolution = (3, 60, 108)
 		#self.resolution = (3, 72, 96)
-		self.episodes_to_watch = 1000
+		self.episodes_to_watch = 10
 
 		self.criterion = nn.MSELoss()
 
@@ -69,6 +70,10 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
 @click.group()
 def cli():
 	pass
+
+@cli.command()
+def ae_train(): 
+	ae_trainer.train()
 
 @pass_config
 def preprocess(config, img): 
@@ -117,8 +122,8 @@ def get_q_values(config, state):
 
 	if config.daqn:
 		img_output, code = config.autoencoder(state)	
-		img_output = to_img(img_output.cpu().data)
-		save_image(img_output, './auto_img/image_{}.png'.format(randint(0,100000000000000000)))
+		#img_output = to_img(img_output.cpu().data)
+		#save_image(img_output, './auto_img/image_{}.png'.format(randint(0,100000000000000000)))
 		output = config.model(code)
 	elif config.drqn:						
 		config.cx = Variable(config.cx.data)
