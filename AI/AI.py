@@ -72,8 +72,10 @@ def cli():
 	pass
 
 @cli.command()
-def ae_train(): 
-	ae_trainer.train()
+@click.option('--load_model', is_flag=True, help='Load previous model?')
+@click.option('--learning_rate', type=float, default='1e-3', help='Autoencoder learning rate')
+def ae_train(load_model, learning_rate): 
+	ae_trainer.train(load_model, learning_rate)
 
 @pass_config
 def preprocess(config, img): 
@@ -207,7 +209,7 @@ def initialize_vizdoom(config_path):
 	return game
 
 def screenshot(game):
-	image_name = './training_set/image_{}.jpg'.format(randint(0,100000000000000000)) 
+	image_name = './training_set/train/image_{}.jpg'.format(randint(0,100000000000000000)) 
 	image_array = game.get_state().screen_buffer
 	image_array = np.ascontiguousarray(image_array.transpose(1,2,0))
 	img = Image.fromarray(image_array, 'RGB')
@@ -230,7 +232,7 @@ def train(config, learning_rate, discount_factor, config_path,
 
 	config.learning_rate = learning_rate
 	config.discount_factor = discount_factor
-	config.config_path = config_path
+	config.config_path = '../scenarios/'+config_path
 	config.model_to_load = model_to_load
 	config.daqn = daqn
 	config.drqn = drqn
