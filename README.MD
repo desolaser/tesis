@@ -38,10 +38,7 @@ autoencoder desde cero se puede hacer lo siguiente.
 
 2. Ejecutar el comando ```AI ae_train```
 
-3. Al terminal saldrá un archivo llamado "autoencoder.pth". Este archivo debe ser
-copiado a la carpeta "AI/src/model/".
-
-4. Ejecutar ```AI train --daqn```.
+3. Probar el algoritmo DAQN con comando ```AI train --daqn```
 
 ## Parámetros AI train
 
