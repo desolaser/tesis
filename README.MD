@@ -31,10 +31,38 @@ memoria de reproducción.
 Usualmente para usar la DAQN basta con utilizar AI train --daqn, sin embargo si se desea entrenar al
 autoencoder desde cero se puede hacer lo siguiente.
 
-1. Para obtener un dataset es posible utilizar el comando "AI train --image_capture" en varios mapas. Ejemplos:
-```AI train --config_path=../scenarios/defend_the_center.cfg --image_capture```
-```AI train --config_path=../scenarios/deathmatch.cfg --image_capture```
-```AI train --config_path=../scenarios/rocket_basic.cfg --image_capture```
+1. Para obtener un dataset hay dos formas, una es utilizando el comando ```AI imcapture```, el cual captura un
+dataset desde un agente que realiza acciones aleatorias.
+Esta función tiene los siguientes parámetros:
+
+a. --config_path. Valor por defecto = 'basic.cfg'. Este parámetro se usa para definir el archivo de configuración
+a utilizar, lo que a su vez define la configuración del juego y el mapa. Ejemplo: &nbsp;
+```AI imcapture --config_path=defend_the_center.cfg```
+
+b. --episodes. Valor por defecto = 1000. Define la cantidad de episodios a correr. &nbsp;
+```AI recording --episodes=10000```
+
+c. --image_limit. Valor por defecto = 0 (no hay limite). Define la cantidad de imágenes a tomar, una
+vez se llega a ese límite el programa finaliza. &nbsp;
+```AI recording --image_limit=10000```
+
+La segunda forma para obtener un dataset es grabando un replay y después reproduciendolo para obtener un dataset de experiencia humana.
+Para ello se puede utilizar el comando  ```AI recording``` para grabar y despues utilizar  ```AI watchreplay```.
+Al hacer esto se guardará cada frame del replay como parte del dataset. &nbsp;
+
+```AI recording``` tiene los siguientes parámetros:
+
+a. --replay_file. Valor por defecto = replay.lmp. Define el nombre del archivo de replay para guardar. Ejemplo:  &nbsp;
+```AI recording --replay_file=guadado.lmp```
+
+b. --config_file. Valor por defecto = 'basic.cfg'. Este parámetro se usa para definir el archivo de configuración
+a utilizar, lo que a su vez define la configuración del juego y el mapa. Ejemplo:  &nbsp;
+```AI recording --config_path=defend_the_center.cfg```
+
+```AI watchreplay``` tiene los siguientes parámetros:
+
+a. --replay_file. Valor por defecto = replay.lmp. Define el nombre del archivo de replay para cargar y ver. Ejemplo:  &nbsp;
+```AI watchreplay --replay_file=guadado.lmp```
 
 2. Ejecutar el comando ```AI ae_train```
 
@@ -48,9 +76,9 @@ autoencoder desde cero se puede hacer lo siguiente.
 2. --discount_factor. Valor por defecto = 0.99. Este parámetro sirve para definir el factor de descuento en la función Q. Ejemplo: 
 ```AI train --discount_factor=0.8```
 
-3. --config_path. Valor por defecto = '../scenarios/basic.cfg'. Este parámetro se usa para definir el archivo de configuración
+3. --config_path. Valor por defecto = 'basic.cfg'. Este parámetro se usa para definir el archivo de configuración
 a utilizar, lo que a su vez define la configuración del juego y el mapa. Ejemplo: 
-```AI train --config_path=../scenarios/deathmatch.cfg```
+```AI train --config_path=deathmatch.cfg```
 
 4. --model_to_load. No posee valor por defecto, ya que si está vacio se empieza un entrenamiento desde cero. Define el modelo
 de red neuronal a cargar que haya sido previamente entrenada. Estos modelos se van guardando a cada época en la carpeta "AI/nets". Ejemplo: 
@@ -79,8 +107,11 @@ guardando en la carpeta "AI/training_set". Ejemplo:
 1. --learning_rate. Valor por defecto = 1e-3. Esto sirve para definir la tasa de aprendizaje del autoencoder. Ejemplo: 
 ```AI ae_train --learning_rate=0.02```
 
-s. --load_model. Este flag define sirve para definir que se utilizará el autoencoder ya entrenado en vez de crear uno de cero. Ejemplo: 
+2. --load_model. Este flag define sirve para definir que se utilizará el autoencoder ya entrenado en vez de crear uno de cero. Ejemplo: 
 ```AI ae_train --load_model```
+
+3. --epochs. Este valor es un entero que define cuantas épocas de entrenamiento habrá. Ejemplo:
+```AI ae_train --epochs=100```
 
 ## Notas
 

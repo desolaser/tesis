@@ -29,32 +29,23 @@ from src.model.qnet import qNet
 from src.model.drqn import drqnNet
 import src.ae_trainer as ae_trainer
 import src.tools as tools
+import src.capture as capture
+import src.replay as replay
 import os
 
 class Config(object):
 	"""Defines the configuration and global variables"""
 
 	def __init__(self):
-		# Q-learning settings
 		self.epochs = 5
 		self.learning_steps_per_epoch = 2000
 		self.replay_memory_size = 10000
-
-		# NN learning settings
 		self.batch_size = 32
-
-		# Training regime
 		self.test_episodes_per_epoch = 100        
 		self.frame_repeat = 4
-
-		# Other parameters
 		self.resolution = (3, 60, 108)
-		#self.resolution = (3, 72, 96)
 		self.episodes_to_watch = 10
-
 		self.criterion = nn.MSELoss()
-
-		# Configuration file path
 		self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 		self.vis = visdom.Visdom()        
 		self.loss_vector = []  
@@ -62,8 +53,8 @@ class Config(object):
 		self.epoch_vector = []
 		self.actual_epoch_loss_vector = []
 		self.sw = False
-
-		self.code_size = 4096
+		self.code_size = 1024
+		self.frame_counter = 0
 
 pass_config = click.make_pass_decorator(Config, ensure=True)
 
@@ -74,17 +65,54 @@ def cli():
 @cli.command()
 @click.option('--load_model', is_flag=True, help='Load previous model?')
 @click.option('--learning_rate', type=float, default='1e-3', help='Autoencoder learning rate')
-def ae_train(load_model, learning_rate): 
-	ae_trainer.train(load_model, learning_rate)
+@click.option('--epochs', type=int, default=10, help='Number of epochs of training')
+def ae_train(load_model, learning_rate, epochs): 
+	""" Performs the training of the autoencoder."""
+
+	ae_trainer.train(load_model, learning_rate, epochs)
+
+@cli.command()
+@click.option('--config_path', default='../scenarios/basic.cfg', help='Config file .cfg')
+@click.option('--episodes', type=int, default=1000, help='Episodes during which image is captured')
+@click.option('--image_limit', type=int, default=0, help='Limit of images taken')
+def imcapture(config_path, episodes, image_limit): 
+	""" Captures imaes for the dataset of the autoencoder with a random policy."""
+
+	capture.image_capture(config_path, episodes, image_limit)
+
+@cli.command()
+@click.option('--replay_file', default='replay.lmp', help='Record file to save .lmp')
+@click.option('--config_file', default='replay.cfg', help='.cfg config file')
+def recording(replay_file, config_file): 
+	""" Records a lmp file."""
+
+	replay.recording(replay_path, config_file)
+
+@cli.command()
+@click.option('--replay_file', default='replay.lmp', help='Replay to watch')
+def watchreplay(replay_file): 
+	""" Replays an lmp file."""
+
+	replay.replay(replay_path)
 
 @pass_config
 def preprocess(config, img): 
+	""" Resizes and change data type of the image."""
+
 	img = skimage.transform.resize(img, config.resolution)
 	img = img.astype(np.float32)	
 	return img
 
 @pass_config
-def learn(config, s1, target_q):		
+def learn(config, s1, target_q):	
+	""" Performs a learning step
+
+	Keyword arguments:
+	config -- imports global variables    
+	s1 -- state received
+	target_q -- target q values
+	"""
+
 	s1 = torch.from_numpy(s1)
 	target_q = torch.from_numpy(target_q)
 	if torch.cuda.is_available():
@@ -115,17 +143,40 @@ def to_img(x):
 	return x
 
 @pass_config
+def image_save(config, inputs, outputs):
+	""" Save the input and output of the autoencoder
+
+	Keyword arguments:
+	config -- imports global variables    
+	inputs -- input of autoencoder
+	outputs -- output of autoencoder
+	"""
+
+	config.frame_counter = config.frame_counter + 1
+	inputs = inputs.cpu().data
+	save_image(inputs, './compare/inputs/image_{}.png'.format(config.frame_counter))
+	outputs = to_img(outputs.cpu().data)
+	save_image(outputs, './compare/outputs/image_{}.png'.format(config.frame_counter))
+
+@pass_config
 def get_q_values(config, state):
-	state = torch.from_numpy(state)
+	""" Returns q values of a given state
+
+	Keyword arguments:
+	config -- imports global variables    
+	state -- given state
+	"""
+
+	state = torch.from_numpy(state)	
+
 	if torch.cuda.is_available():
 		state = state.to(config.device)
 
 	state = Variable(state)
 
 	if config.daqn:
-		img_output, code = config.autoencoder(state)	
-		#img_output = to_img(img_output.cpu().data)
-		#save_image(img_output, './auto_img/image_{}.png'.format(randint(0,100000000000000000)))
+		img_output, code = config.autoencoder(state)
+		image_save(state, img_output)
 		output = config.model(code)
 	elif config.drqn:						
 		config.cx = Variable(config.cx.data)
@@ -138,6 +189,12 @@ def get_q_values(config, state):
 	return output
 
 def get_best_action(state):
+	""" Get best action of a given state
+
+	Keyword arguments: 
+	state -- given state
+	"""
+
 	q = get_q_values(state)
 	m, index = torch.max(q, 1)
 	action = index.cpu().data.numpy()[0]
@@ -161,10 +218,21 @@ def learn_from_memory(config):
 @pass_config
 def perform_learning_step(config, epoch):
 	""" Makes an action according to eps-greedy policy, observes the result
-	(next state, reward) and learns from the transition"""
+	(next state, reward) and learns from the transition.
+
+	Keyword arguments: 
+	config -- imports global variables    
+	epoch -- actual epoch of learning
+	"""
 
 	def exploration_rate(config, epoch):
-		""" Define exploration rate change over time"""
+		""" Define exploration rate change over time
+
+		Keyword arguments: 
+		config -- imports global variables    
+		epoch -- actual epoch of learning
+		"""
+
 		start_eps = 1.0
 		end_eps = 0.1
 		const_eps_epochs = 0.1 * config.epochs  
@@ -195,7 +263,11 @@ def perform_learning_step(config, epoch):
 	learn_from_memory()
 
 def initialize_vizdoom(config_path):
-	""" Initialize vizdoom game class an set configuration"""
+	""" Initialize vizdoom game class an set configuration
+
+	Keyword arguments: 
+	config_path -- path of .cfg file used to get the maps and gameplay configuration
+	"""
 
 	print("Initializing doom...")
 	game = DoomGame()
@@ -208,9 +280,14 @@ def initialize_vizdoom(config_path):
 	print("Doom initialized.")
 	return game
 
-def screenshot(game):
-	image_name = './training_set/train/image_{}.jpg'.format(randint(0,100000000000000000)) 
-	image_array = game.get_state().screen_buffer
+def screenshot(state):
+	""" Save an state as image
+
+	Keyword arguments: 
+	state -- state to save as image
+	"""
+	image_name = './training_set/example/image_{}.jpg'.format(randint(0,100000000000000000)) 
+	image_array = state[0, :, :, :]
 	image_array = np.ascontiguousarray(image_array.transpose(1,2,0))
 	img = Image.fromarray(image_array, 'RGB')
 	img.save(image_name)     
@@ -222,12 +299,11 @@ def screenshot(game):
 @click.option('--model_to_load', help='Network model to load')
 @click.option('--skip_learning', is_flag=True, help='Skip learning?')
 @click.option('--skip_watching', is_flag=True, help='Skip watching the agent play?')
-@click.option('--image_capture', is_flag=True, help='Capture images while watching the agent?')
 @click.option('--daqn', is_flag=True, help='Use DAQN model?')
 @click.option('--drqn', is_flag=True, help='Use DRQN model?')
 @pass_config
 def train(config, learning_rate, discount_factor, config_path, 
-	model_to_load, skip_learning, skip_watching, image_capture, daqn, drqn):
+	model_to_load, skip_learning, skip_watching, daqn, drqn):
 	""" Train and watch the model train"""
 
 	config.learning_rate = learning_rate
@@ -384,15 +460,9 @@ def train(config, learning_rate, discount_factor, config_path,
 
 			while not config.game.is_episode_finished():
 
-				if image_capture and sc_counter >= 2:
-					screenshot(config.game)		
-					sc_counter = 0		
-
-				if image_capture:	
-					sc_counter = sc_counter + 1
-
-				state = preprocess(config.game.get_state().screen_buffer)
-				state = state.reshape([1, config.resolution[0], config.resolution[1], config.resolution[2]])
+				state = preprocess(config.game.get_state().screen_buffer)	
+				state = state.reshape([1, config.resolution[0], config.resolution[1], config.resolution[2]])				
+							
 				best_action_index = get_best_action(state)
 				config.game.set_action(config.actions[best_action_index])
 				for _ in range(config.frame_repeat):

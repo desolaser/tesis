@@ -12,61 +12,77 @@ from tqdm import *
 import os
 import numpy as np
 from PIL import Image
+import visdom
 from src.model.autoencoder import autoencoder
-
-if not os.path.exists('./doom_img'):
-	os.mkdir('./doom_img')
+from random import randint, random
 
 def to_img(x):
 	x = 0.5 * (x + 1)
 	x = x.clamp(0, 1)
 	return x
 
-num_epochs = 40
-batch_size = 128
-code_size = 4096
-linear_input = 9216
-linear_output = 12960
+def train(load_model, learning_rate, num_epochs):
+	""" Trains the autoencoder.
 
-img_transform = transforms.Compose([
-	transforms.Resize((60,108), Image.ANTIALIAS),
-	transforms.ToTensor(),
-	transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
+	Keyword arguments:
+	load_model -- load previous model
+	learning_rate -- learning rate of the algorithm
+	num_epochs -- training epochs (optional)
+	"""
 
-dataset = datasets.ImageFolder(root='./training_set/', transform=img_transform)
+	if not os.path.exists('./doom_img'):
+		os.mkdir('./doom_img')	
 
-dataset_length = len(dataset)
+	batch_size = 128
+	code_size = 1024
+	linear_input = 2304
+	linear_output = 5760
+	vis = visdom.Visdom()     
 
-#Training
-n_training_samples = (dataset_length / 5) * 3
-train_sampler = SubsetRandomSampler(np.arange(n_training_samples, dtype=np.int64))
+	img_transform = transforms.Compose([
+		transforms.Resize((60,108), Image.ANTIALIAS),
+		transforms.ToTensor(),
+		transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+	])
 
-#Validation
-n_val_samples = (dataset_length / 5)
-val_sampler = SubsetRandomSampler(np.arange(n_training_samples, n_training_samples + n_val_samples, dtype=np.int64))
+	dataset = datasets.ImageFolder(root='./training_set/', transform=img_transform)
 
-#Test
-n_test_samples = (dataset_length / 5)
-test_sampler = SubsetRandomSampler(np.arange(n_training_samples + n_val_samples, n_training_samples + n_val_samples + n_test_samples, dtype=np.int64))
+	dataset_length = len(dataset)
 
-train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
-										   sampler=train_sampler, num_workers=2)
-validation_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-												sampler=val_sampler, num_workers=2)
-test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-												sampler=test_sampler, num_workers=2)
+	#Training
+	n_training_samples = (dataset_length / 5) * 3
+	train_sampler = SubsetRandomSampler(np.arange(n_training_samples, dtype=np.int64))
 
+	#Validation
+	n_val_samples = (dataset_length / 5)
+	val_sampler = SubsetRandomSampler(np.arange(n_training_samples, n_training_samples + n_val_samples, dtype=np.int64))
+	print(n_training_samples, n_training_samples + n_val_samples)
 
-def train(load_model, learning_rate):
+	#Test
+	n_test_samples = (dataset_length / 5)
+	test_sampler = SubsetRandomSampler(np.arange(n_training_samples + n_val_samples, n_training_samples + n_val_samples + n_test_samples, dtype=np.int64))
+	print(n_training_samples + n_val_samples, n_training_samples + n_val_samples + n_test_samples)
+
+	train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
+											   sampler=train_sampler, num_workers=2, drop_last=True)
+	validation_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+													sampler=val_sampler, num_workers=2, drop_last=True)
+	test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+													sampler=test_sampler, num_workers=2, drop_last=True)
+
+	train_loss_vector = []
+	val_loss_vector = []
+	epoch_vector = []
+
 	if load_model:
 		model = torch.load('./src/model/autoencoder.pth')
 	else:
 		model = autoencoder(linear_input, linear_output, code_size).cuda()
 
 	criterion = nn.MSELoss()
-	optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,
-								 weight_decay=1e-5)
+	#criterion = nn.BCELoss()
+	m = nn.Sigmoid()
+	optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 	for epoch in range(num_epochs):    
 		print('Training')
@@ -84,9 +100,11 @@ def train(load_model, learning_rate):
 		print('epoch [{}/{}], loss:{:.4f}'
 			  .format(epoch+1, num_epochs, loss.item()))
 		
-		if epoch % 10 == 0:
+		if epoch % 1 == 0:
 			pic = to_img(output.cpu().data)
 			save_image(pic, './doom_img/image_{}.png'.format(epoch))
+
+		train_loss_vector.append(loss.item())
 			
 		print('Validation')
 		for data in tqdm(validation_loader):
@@ -101,6 +119,17 @@ def train(load_model, learning_rate):
 			optimizer.step()
 		# ===================log========================
 		print('Validation loss:{:.4f}'.format(val_loss.item()))
+
+		val_loss_vector.append(val_loss.item())
+		epoch_vector.append(epoch)
+		validation = dict(x=epoch_vector, y=val_loss_vector, mode="markers+lines", 
+					type='custom', marker={'color': 'red', 'symbol': 104, 'size': "10"})
+		train = dict(x=epoch_vector, y=train_loss_vector, mode="markers+lines", 
+					type='custom', marker={'color': 'blue', 'symbol': 104, 'size': "10"})
+		layout = dict(title="Loss function", xaxis={'title': 'epochs'}, yaxis={'title': 'loss'})
+
+		vis._send({'data': [validation, train], 'layout': layout, 'win': 'aelosswin'}) 
+		torch.save(model, './src/model/autoencoder.pth')
 		
 	print('Testing')
 	for data in tqdm(test_loader):
@@ -115,6 +144,8 @@ def train(load_model, learning_rate):
 		optimizer.step()
 	# ===================log========================
 	print('Testing loss:{:.4f}'.format(test_loss.item()))
+	pic = to_img(output.cpu().data)
+	save_image(pic, './doom_img/testing_{}.png'.format(epoch))
 
 	torch.save(model, './src/model/autoencoder.pth')
 
